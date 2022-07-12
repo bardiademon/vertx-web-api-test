@@ -6,6 +6,10 @@ import io.vertx.core.http.HttpServer;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
+import io.vertx.ext.web.handler.StaticHandler;
+
+import java.io.File;
+import java.net.URL;
 
 public final class Server extends AbstractVerticle
 {
@@ -21,7 +25,12 @@ public final class Server extends AbstractVerticle
 
             final Router router = Router.router(vertx);
 
-            router.get("/").handler(this::homeHandler);
+            router.route("/").produces("text/plain").handler(this::homeHandler);
+
+            final URL resource = getClass().getResource("/static");
+
+            if (resource != null) router.route("/static/*").handler(StaticHandler.create(resource.getFile()));
+            else throw new Exception("Cannot set static");
 
             httpServer.requestHandler(router).listen(PORT , "localhost" , result ->
             {
