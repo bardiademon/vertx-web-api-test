@@ -1,5 +1,6 @@
 package com.bardiademon;
 
+import com.bardiademon.controller.Server;
 import io.vertx.core.Vertx;
 
 public final class Main
