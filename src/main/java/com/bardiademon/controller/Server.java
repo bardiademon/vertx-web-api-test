@@ -1,10 +1,9 @@
 package com.bardiademon.controller;
 
 import com.bardiademon.data.DatabaseConnection;
+import com.bardiademon.data.JdbcConnection;
 import com.bardiademon.data.entity.Users;
 import io.smallrye.mutiny.Uni;
-import io.smallrye.mutiny.groups.UniAwait;
-import io.smallrye.mutiny.groups.UniOnItem;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
@@ -35,7 +34,6 @@ public final class Server extends AbstractVerticle implements VertxInstance
     };
 
     private static final Logger logger = LoggerFactory.getLogger(Server.class);
-    private Mutiny.SessionFactory emf;  // (1)
     private static final int PORT = 8888;
 
     private DatabaseConnection databaseConnection;
@@ -47,37 +45,45 @@ public final class Server extends AbstractVerticle implements VertxInstance
     {
         try
         {
-             hibernateConfig();
-
-            final HttpServer httpServer = vertx.createHttpServer();
-
-            final Router router = Router.router(vertx);
-
-            router.route("/").produces("text/plain").handler(this::homeHandler);
-
-            final URL resource = getClass().getResource("/static");
-
-            if (resource != null) router.route("/static/*").handler(StaticHandler.create(resource.getFile()));
-            else throw new Exception("Cannot set static");
-
-            httpServer.requestHandler(router).listen(PORT , "localhost" , result ->
+            if (dbConnection())
             {
-                if (result.succeeded())
+                final HttpServer httpServer = vertx.createHttpServer();
+
+                final Router router = Router.router(vertx);
+
+                router.route("/").produces("text/plain").handler(this::homeHandler);
+
+                final URL resource = getClass().getResource("/static");
+
+                if (resource != null) router.route("/static/*").handler(StaticHandler.create(resource.getFile()));
+                else throw new Exception("Cannot set static");
+
+                httpServer.requestHandler(router).listen(PORT , "localhost" , result ->
                 {
-                    System.out.printf("Server running on port %d!\n" , PORT);
-                    startPromise.complete();
-                }
-                else
-                {
-                    System.out.println("Error run server!");
-                    startPromise.fail(result.cause());
-                }
-            });
+                    if (result.succeeded())
+                    {
+                        System.out.printf("Server running on port %d!\n" , PORT);
+
+                        startPromise.complete();
+                    }
+                    else
+                    {
+                        System.out.println("Error run server!");
+                        startPromise.fail(result.cause());
+                    }
+                });
+            }
+            else throw new Exception("Database connection error");
         }
         catch (Exception e)
         {
             e.printStackTrace();
         }
+    }
+
+    private boolean dbConnection()
+    {
+        return JdbcConnection.connect();
     }
 
     private void homeHandler(final RoutingContext routingContext)
@@ -91,15 +97,6 @@ public final class Server extends AbstractVerticle implements VertxInstance
     {
         vertx.executeBlocking(e ->
         {
-            final Uni<Void> startHibernate = Uni.createFrom().deferred(() ->
-            {
-                emf = Persistence
-                        .createEntityManagerFactory("demo")
-                        .unwrap(Mutiny.SessionFactory.class);
-
-                return Uni.createFrom().voidItem();
-            });
-
             final Configuration configuration = new Configuration().setProperties(getHibernateProperties());
 
             for (final Class<?> entity : entities) configuration.addAnnotatedClass(entity);
@@ -112,8 +109,15 @@ public final class Server extends AbstractVerticle implements VertxInstance
 
             sessionFactory = configuration.buildSessionFactory(registry);
 
-            final UniOnItem<Void> voidUniOnItem = startHibernate.onItem();
-            voidUniOnItem.invoke(() -> logger.info("✅ Hibernate Reactive is ready"));
+            if (!sessionFactory.isOpen()) throw new RuntimeException("Session is close!");
+
+
+            Uni.createFrom().deferred(() ->
+            {
+                Persistence.createEntityManagerFactory("demo").unwrap(Mutiny.SessionFactory.class);
+
+                return Uni.createFrom().voidItem();
+            }).onItem().invoke(() -> logger.info("✅ Hibernate Reactive is ready"));
         });
     }
 
@@ -127,7 +131,7 @@ public final class Server extends AbstractVerticle implements VertxInstance
 //        properties.setProperty(Environment.DIALECT , "org.hibernate.dialect.MySQL55Dialect");
         properties.setProperty(Environment.HBM2DDL_CREATE_SCHEMAS , "true");
         properties.setProperty(Environment.HBM2DDL_DATABASE_ACTION , "create");
-        properties.setProperty(Environment.FORMAT_SQL , "true");
+        properties.setProperty(Environment.SHOW_SQL , "true");
         properties.setProperty(Environment.POOL_SIZE , "10");
         return properties;
     }
