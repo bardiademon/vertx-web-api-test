@@ -36,13 +36,15 @@ public final class Server extends AbstractVerticle implements VertxInstance
 
     private final DatabaseConnection databaseConnection = new DatabaseConnection();
 
+    private SessionFactory sessionFactory;
+
     @Override
     public void start(final Promise<Void> startPromise)
     {
+        hibernateConfig();
+
         try
         {
-            hibernateConfig();
-
             final HttpServer httpServer = vertx.createHttpServer();
 
             final Router router = Router.router(vertx);
@@ -83,20 +85,32 @@ public final class Server extends AbstractVerticle implements VertxInstance
 
     private void hibernateConfig()
     {
-        executeBlocking();
+        vertx.executeBlocking(e ->
+        {
+            final Uni<Void> startHibernate = Uni.createFrom().deferred(() ->
+            {
+                emf = Persistence
+                        .createEntityManagerFactory("demo")
+                        .unwrap(Mutiny.SessionFactory.class);
 
-        final Configuration configuration = new Configuration().setProperties(getHibernateProperties());
+                return Uni.createFrom().voidItem();
+            });
 
-        configuration.addAnnotatedClass(Users.class);
+            final Configuration configuration = new Configuration().setProperties(getHibernateProperties());
 
-        final StandardServiceRegistryBuilder builder = new ReactiveServiceRegistryBuilder()
-                .addService(Server.class , this)
-                .applySettings(configuration.getProperties());
+            configuration.addAnnotatedClass(Users.class);
 
-        final StandardServiceRegistry registry = builder.build();
+            final StandardServiceRegistryBuilder builder = new ReactiveServiceRegistryBuilder()
+                    .addService(Server.class , this)
+                    .applySettings(configuration.getProperties());
 
-        SessionFactory sessionFactory = configuration.buildSessionFactory(registry);
+            final StandardServiceRegistry registry = builder.build();
 
+            sessionFactory = configuration.buildSessionFactory(registry);
+
+            final UniOnItem<Void> voidUniOnItem = startHibernate.onItem();
+            voidUniOnItem.invoke(() -> logger.info("✅ Hibernate Reactive is ready"));
+        });
     }
 
     private Properties getHibernateProperties()
@@ -109,29 +123,9 @@ public final class Server extends AbstractVerticle implements VertxInstance
 //        properties.setProperty(Environment.DIALECT , "org.hibernate.dialect.MySQL55Dialect");
         properties.setProperty(Environment.HBM2DDL_CREATE_SCHEMAS , "true");
         properties.setProperty(Environment.HBM2DDL_DATABASE_ACTION , "create");
-        properties.setProperty(Environment.HBM2DDL_AUTO , "update");
         properties.setProperty(Environment.FORMAT_SQL , "true");
         properties.setProperty(Environment.POOL_SIZE , "10");
         return properties;
-    }
-
-    private void executeBlocking()
-    {
-        final Uni<Void> startHibernate = Uni.createFrom().deferred(() ->
-        {
-            emf = Persistence
-                    .createEntityManagerFactory("demo")
-                    .unwrap(Mutiny.SessionFactory.class);
-
-            return Uni.createFrom().voidItem();
-        });
-
-        vertx.executeBlocking(e ->
-        {
-            System.out.println("executeBlocking");
-            final UniOnItem<Void> voidUniOnItem = startHibernate.onItem();
-            voidUniOnItem.invoke(() -> logger.info("✅ Hibernate Reactive is ready"));
-        });
     }
 
     @Override
