@@ -30,21 +30,25 @@ import java.util.Properties;
 
 public final class Server extends AbstractVerticle implements VertxInstance
 {
+    private final Class<?>[] entities = new Class[]{
+            Users.class
+    };
+
     private static final Logger logger = LoggerFactory.getLogger(Server.class);
     private Mutiny.SessionFactory emf;  // (1)
     private static final int PORT = 8888;
 
-    private final DatabaseConnection databaseConnection = new DatabaseConnection();
+    private DatabaseConnection databaseConnection;
 
     private SessionFactory sessionFactory;
 
     @Override
     public void start(final Promise<Void> startPromise)
     {
-        hibernateConfig();
-
         try
         {
+             hibernateConfig();
+
             final HttpServer httpServer = vertx.createHttpServer();
 
             final Router router = Router.router(vertx);
@@ -98,7 +102,7 @@ public final class Server extends AbstractVerticle implements VertxInstance
 
             final Configuration configuration = new Configuration().setProperties(getHibernateProperties());
 
-            configuration.addAnnotatedClass(Users.class);
+            for (final Class<?> entity : entities) configuration.addAnnotatedClass(entity);
 
             final StandardServiceRegistryBuilder builder = new ReactiveServiceRegistryBuilder()
                     .addService(Server.class , this)
