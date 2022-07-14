@@ -5,16 +5,13 @@ import com.bardiademon.data.JdbcConnection;
 import com.bardiademon.data.entity.Users;
 import com.bardiademon.util.Path;
 import io.smallrye.mutiny.Uni;
-import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpServer;
-import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.ext.web.Router;
-import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.StaticHandler;
 import org.hibernate.SessionFactory;
 import org.hibernate.boot.registry.StandardServiceRegistry;
@@ -33,7 +30,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Properties;
 
-public final class Server extends AbstractVerticle implements VertxInstance
+public final class Server extends Handler implements VertxInstance
 {
     private final Class<?>[] entities = new Class[]{
             Users.class
@@ -59,7 +56,7 @@ public final class Server extends AbstractVerticle implements VertxInstance
 
                 final Router router = Router.router(vertx);
 
-                router.route("/").produces("text/plain").handler(this::homeHandler);
+                router.route("/").produces("text/plain").handler(super::homeHandler);
 
                 final URL resource = getClass().getResource("/static");
 
@@ -131,13 +128,6 @@ public final class Server extends AbstractVerticle implements VertxInstance
             }
         }
         else logger.error(String.format("Resource is null: %s" , Path.RESOURCE_INITIAL_QUERY));
-    }
-
-    private void homeHandler(final RoutingContext routingContext)
-    {
-        final HttpServerResponse response = routingContext.response();
-        response.putHeader("content-type" , "text/plain");
-        response.end("Server run by vert.x");
     }
 
     private void hibernateConfig()
