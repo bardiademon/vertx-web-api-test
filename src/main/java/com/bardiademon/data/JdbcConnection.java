@@ -35,7 +35,6 @@ public class JdbcConnection
             logger.error("Database connection error: " + e.getMessage());
             return false;
         }
-
     }
 
     private enum ConnectionInfo
@@ -56,6 +55,18 @@ public class JdbcConnection
     public Connection getConnection()
     {
         return connection;
+    }
+
+    public static boolean isConnected()
+    {
+        try
+        {
+            return (jdbcConnection != null && !jdbcConnection.getConnection().isClosed());
+        }
+        catch (SQLException e)
+        {
+            return false;
+        }
     }
 
     public static JdbcConnection getJdbcConnection()

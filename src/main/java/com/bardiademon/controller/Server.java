@@ -3,10 +3,12 @@ package com.bardiademon.controller;
 import com.bardiademon.data.DatabaseConnection;
 import com.bardiademon.data.JdbcConnection;
 import com.bardiademon.data.entity.Users;
+import com.bardiademon.util.Path;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
+import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpServer;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.impl.logging.Logger;
@@ -25,6 +27,10 @@ import org.hibernate.reactive.vertx.VertxInstance;
 
 import javax.persistence.Persistence;
 import java.net.URL;
+import java.nio.file.FileSystemException;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.Properties;
 
 public final class Server extends AbstractVerticle implements VertxInstance
@@ -47,6 +53,8 @@ public final class Server extends AbstractVerticle implements VertxInstance
         {
             if (dbConnection())
             {
+                initialQuery();
+
                 final HttpServer httpServer = vertx.createHttpServer();
 
                 final Router router = Router.router(vertx);
@@ -84,6 +92,45 @@ public final class Server extends AbstractVerticle implements VertxInstance
     private boolean dbConnection()
     {
         return JdbcConnection.connect();
+    }
+
+    private void initialQuery()
+    {
+        final URL resource = getClass().getClassLoader().getResource(Path.RESOURCE_INITIAL_QUERY);
+        if (resource != null)
+        {
+            try
+            {
+                final Buffer buffer = vertx.fileSystem().readFileBlocking(resource.getPath());
+
+                if (buffer != null)
+                {
+                    if (JdbcConnection.isConnected())
+                    {
+                        final Connection connection = JdbcConnection.getJdbcConnection().getConnection();
+
+                        try (final Statement statement = connection.createStatement())
+                        {
+                            final String initialQuery = buffer.toString();
+
+                            statement.execute(initialQuery);
+                            logger.info("The initial query was successfully completed!");
+                        }
+                        catch (SQLException e)
+                        {
+                            logger.error("Initial query, sql exception" , e);
+                        }
+                    }
+                    else logger.error("Initial query, Database not connected!");
+                }
+                else throw new FileSystemException("buffer == null");
+            }
+            catch (FileSystemException e)
+            {
+                logger.error(String.format("Cannot read file: %s" , Path.RESOURCE_INITIAL_QUERY) , e);
+            }
+        }
+        else logger.error(String.format("Resource is null: %s" , Path.RESOURCE_INITIAL_QUERY));
     }
 
     private void homeHandler(final RoutingContext routingContext)
