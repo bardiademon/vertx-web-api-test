@@ -4,15 +4,22 @@ import com.bardiademon.data.DatabaseConnection;
 import com.bardiademon.data.JdbcConnection;
 import com.bardiademon.data.entity.Users;
 import com.bardiademon.util.Path;
+import graphql.GraphQL;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
+import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServer;
 import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.ext.web.Router;
+import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.StaticHandler;
+import io.vertx.ext.web.handler.graphql.GraphQLHandler;
+import io.vertx.ext.web.handler.graphql.GraphQLHandlerOptions;
+import io.vertx.ext.web.handler.graphql.GraphiQLHandler;
+import io.vertx.ext.web.handler.graphql.GraphiQLHandlerOptions;
 import org.hibernate.SessionFactory;
 import org.hibernate.boot.registry.StandardServiceRegistry;
 import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
@@ -57,6 +64,15 @@ public final class Server extends Handler implements VertxInstance
                 final Router router = Router.router(vertx);
 
                 router.route("/").produces("text/plain").handler(super::homeHandler);
+                router.route("/users/login").method(HttpMethod.POST).produces("application/json").handler(super::loginHandler);
+
+                router.route().handler(BodyHandler.create());
+
+                router.post("/graphql").handler(super::graphqlHandler);
+
+                // register `/graphiql` endpoint for the GraphiQL UI
+                GraphiQLHandlerOptions graphiqlOptions = new GraphiQLHandlerOptions().setEnabled(true);
+                router.route("/graphiql/*").handler(GraphiQLHandler.create(graphiqlOptions));
 
                 final URL resource = getClass().getResource("/static");
 
