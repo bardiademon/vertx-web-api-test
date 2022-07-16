@@ -1,0 +1,25 @@
+schema {
+    query: Query
+}
+
+type Bardiademon {
+    email: String
+    id: String
+    name: String
+}
+
+type Query {
+    bardiademon: Bardiademon
+    user(family: String, name: String, phone: String): Users
+}
+
+type Result {
+    result: Boolean
+}
+
+type Users {
+    family: String
+    id: Int
+    name: String
+    phone: String
+}

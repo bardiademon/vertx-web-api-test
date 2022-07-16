@@ -46,7 +46,7 @@ public sealed class Handler extends AbstractVerticle permits Server
 
     protected GraphQL setupGraphQL()
     {
-        final URL resource = Main.class.getClassLoader().getResource("graphql/schema.gql");
+        final URL resource = Main.class.getClassLoader().getResource("graphql/schema.graphql");
         if (resource == null) return null;
 
         final String schema = vertx.fileSystem().readFileBlocking(resource.getFile()).toString();
