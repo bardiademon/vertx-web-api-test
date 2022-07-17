@@ -1,22 +1,52 @@
+scalar DateTime
+scalar Long
+
 schema {
     query: Query
 }
 
+type Query {
+
+    # For test
+    bardiademon: Bardiademon
+
+    # For test
+    user(family: String, name: String, phone: String): Users
+
+    login(username: String, password: String): LoginResult
+}
+
+type LoginResult
+{
+    result: Boolean
+    token: String!
+}
+
+type User
+{
+    id: Long,
+    name: String,
+    family: String,
+    phone: String,
+    username: String,
+    password: String
+    created_at: DateTime
+}
+
+
+# For test
 type Bardiademon {
     email: String
     id: String
     name: String
 }
 
-type Query {
-    bardiademon: Bardiademon
-    user(family: String, name: String, phone: String): Users
-}
-
+# For test
 type Result {
     result: Boolean
 }
 
+# For test
 type Users {
     family: String
     id: Int
