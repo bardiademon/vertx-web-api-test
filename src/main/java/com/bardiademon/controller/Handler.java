@@ -138,7 +138,7 @@ public sealed class Handler extends AbstractVerticle permits Server
 
     public Future<Map<String, Object>> loginDataFetcher(final DataFetchingEnvironment environment)
     {
-        Future.future(event ->
+        return Future.future(event ->
         {
             final String username = environment.getArgument("username");
             final String password = environment.getArgument("password");
