@@ -1,4 +1,4 @@
-package com.bardiademon.data;
+package com.bardiademon.data.DBConnection;
 
 import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
@@ -19,22 +19,25 @@ public final class JdbcConnection
     {
         if (jdbcConnection == null) jdbcConnection = new JdbcConnection();
 
-        final var URL_CONNECTION = String.format("jdbc:mysql://%s:%s/%s" ,
-                ConnectionInfo.HOST.value , ConnectionInfo.PORT.value , ConnectionInfo.DATABASE_NAME.value);
-
-        try
+        if (!JdbcConnection.isConnected())
         {
-            Class.forName("com.mysql.jdbc.Driver");
+            final var URL_CONNECTION = String.format("jdbc:mysql://%s:%s/%s" ,
+                    ConnectionInfo.HOST.value , ConnectionInfo.PORT.value , ConnectionInfo.DATABASE_NAME.value);
 
-            jdbcConnection.connection = DriverManager.getConnection(URL_CONNECTION , ConnectionInfo.USERNAME.value , ConnectionInfo.PASSWORD.value);
-            logger.info("Connected to database!");
-            return true;
+            try
+            {
+                Class.forName("com.mysql.jdbc.Driver");
+
+                jdbcConnection.connection = DriverManager.getConnection(URL_CONNECTION , ConnectionInfo.USERNAME.value , ConnectionInfo.PASSWORD.value);
+                logger.info("Connected to database!");
+                return true;
+            }
+            catch (SQLException | ClassNotFoundException e)
+            {
+                logger.error("Database connection error: " + e.getMessage());
+            }
         }
-        catch (SQLException | ClassNotFoundException e)
-        {
-            logger.error("Database connection error: " + e.getMessage());
-            return false;
-        }
+        return false;
     }
 
     private enum ConnectionInfo
@@ -61,7 +64,7 @@ public final class JdbcConnection
     {
         try
         {
-            return (jdbcConnection != null && !jdbcConnection.getConnection().isClosed());
+            return (jdbcConnection != null && jdbcConnection.getConnection() != null && !jdbcConnection.getConnection().isClosed());
         }
         catch (SQLException e)
         {

@@ -1,10 +1,10 @@
 package com.bardiademon.controller;
 
-import com.bardiademon.data.DatabaseConnection;
-import com.bardiademon.data.JdbcConnection;
+import com.bardiademon.data.DBConnection.DatabaseConnection;
+import com.bardiademon.data.DBConnection.JDBCPoolConnection;
+import com.bardiademon.data.DBConnection.JdbcConnection;
 import com.bardiademon.data.entity.Users;
 import com.bardiademon.util.Path;
-import graphql.GraphQL;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
@@ -16,8 +16,6 @@ import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.StaticHandler;
-import io.vertx.ext.web.handler.graphql.GraphQLHandler;
-import io.vertx.ext.web.handler.graphql.GraphQLHandlerOptions;
 import io.vertx.ext.web.handler.graphql.GraphiQLHandler;
 import io.vertx.ext.web.handler.graphql.GraphiQLHandlerOptions;
 import org.hibernate.SessionFactory;
@@ -32,9 +30,6 @@ import org.hibernate.reactive.vertx.VertxInstance;
 import javax.persistence.Persistence;
 import java.net.URL;
 import java.nio.file.FileSystemException;
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.Properties;
 
 public final class Server extends Handler implements VertxInstance
@@ -55,6 +50,8 @@ public final class Server extends Handler implements VertxInstance
     {
         try
         {
+            super.start(startPromise);
+
             if (dbConnection())
             {
                 initialQuery();
@@ -118,23 +115,11 @@ public final class Server extends Handler implements VertxInstance
 
                 if (buffer != null)
                 {
-                    if (JdbcConnection.isConnected())
-                    {
-                        final Connection connection = JdbcConnection.getJdbcConnection().getConnection();
+                    final String initialQuery = buffer.toString();
 
-                        try (final Statement statement = connection.createStatement())
-                        {
-                            final String initialQuery = buffer.toString();
+                    final String[] queries = initialQuery.split("\\# NEXT-QUERY");
 
-                            statement.execute(initialQuery);
-                            logger.info("The initial query was successfully completed!");
-                        }
-                        catch (SQLException e)
-                        {
-                            logger.error("Initial query, sql exception" , e);
-                        }
-                    }
-                    else logger.error("Initial query, Database not connected!");
+                    for (final String query : queries) executeQuery(query.trim());
                 }
                 else throw new FileSystemException("buffer == null");
             }
@@ -144,6 +129,16 @@ public final class Server extends Handler implements VertxInstance
             }
         }
         else logger.error(String.format("Resource is null: %s" , Path.RESOURCE_INITIAL_QUERY));
+    }
+
+    private void executeQuery(final String query)
+    {
+        JDBCPoolConnection.connect(vertx)
+                .getJdbcPool()
+                .query(query)
+                .execute()
+                .onSuccess(event -> logger.info("execute query successfully: " + query))
+                .onFailure(event -> logger.info("execute query failure: " + query));
     }
 
     private void hibernateConfig()

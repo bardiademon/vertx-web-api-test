@@ -1,14 +1,23 @@
 package com.bardiademon.controller;
 
 import com.bardiademon.Main;
+import com.bardiademon.data.dto.DtoLoginResult;
+import com.bardiademon.data.dto.DtoUser;
+import com.bardiademon.data.service.UserService;
+import com.bardiademon.util.Path;
 import graphql.GraphQL;
 import graphql.scalars.ExtendedScalars;
 import graphql.schema.*;
 import graphql.schema.idl.*;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
+import io.vertx.core.Promise;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.JsonObject;
+import io.vertx.ext.auth.JWTOptions;
+import io.vertx.ext.auth.PubSecKeyOptions;
+import io.vertx.ext.auth.jwt.JWTAuth;
+import io.vertx.ext.auth.jwt.JWTAuthOptions;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.graphql.GraphQLHandler;
 import io.vertx.ext.web.handler.graphql.GraphQLHandlerOptions;
@@ -25,8 +34,36 @@ public sealed class Handler extends AbstractVerticle permits Server
             "user" , "bardiademon" , "login"
     };
 
+    private JWTAuth jwtAuth;
+
     protected Handler()
     {
+
+    }
+
+    @Override
+    public void start(Promise<Void> startPromise) throws Exception
+    {
+        createJWTAuth();
+    }
+
+    private void createJWTAuth()
+    {
+        final URL resourcePrivateKey = Path.getResource(Path.RESOURCE_PRIVATE_KEY);
+        final URL resourcePublicKey = Path.getResource(Path.RESOURCE_PUBLIC_KEY);
+
+        if (resourcePrivateKey != null && resourcePublicKey != null)
+        {
+            jwtAuth = JWTAuth.create(vertx , new JWTAuthOptions()
+                    .addPubSecKey(new PubSecKeyOptions()
+                            .setAlgorithm("RS256")
+                            .setBuffer(vertx.fileSystem().readFileBlocking(resourcePublicKey.getFile())))
+                    .addPubSecKey(new PubSecKeyOptions()
+                            .setAlgorithm("RS256")
+                            .setBuffer(vertx.fileSystem().readFileBlocking(resourcePrivateKey.getFile()))
+                    ));
+        }
+        else throw new RuntimeException("Not found public and private key");
     }
 
     protected void homeHandler(final RoutingContext routingContext)
@@ -132,17 +169,22 @@ public sealed class Handler extends AbstractVerticle permits Server
         });
     }
 
-    public Future<Map<String, Object>> loginDataFetcher(final DataFetchingEnvironment environment)
+    public Future<DtoLoginResult> loginDataFetcher(final DataFetchingEnvironment environment)
     {
         return Future.future(event ->
         {
             final String username = environment.getArgument("username");
             final String password = environment.getArgument("password");
 
-            final JsonObject res = new JsonObject();
-            res.put("result" , false);
-            res.put("token" , "IS TOKEN");
-            event.complete(res.getMap());
+            UserService.getUserService(vertx).findByUsernamePassword(username , password , user ->
+            {
+                final String token = jwtAuth.generateToken(new JsonObject().put("user_id" , user.getId()) , new JWTOptions().setAlgorithm("RS256"));
+                event.complete(DtoLoginResult.builder()
+                        .token(token)
+                        .result(token != null)
+                        .user(DtoUser.getInstance(user))
+                        .build());
+            });
         });
     }
 

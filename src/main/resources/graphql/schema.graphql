@@ -20,6 +20,7 @@ type LoginResult
 {
     result: Boolean
     token: String!
+    user: User
 }
 
 type User
@@ -30,7 +31,7 @@ type User
     phone: String,
     username: String,
     password: String
-    created_at: DateTime
+    createdAt: DateTime
 }
 
 

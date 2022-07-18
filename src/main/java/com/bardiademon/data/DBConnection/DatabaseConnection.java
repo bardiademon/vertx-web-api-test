@@ -1,4 +1,4 @@
-package com.bardiademon.data;
+package com.bardiademon.data.DBConnection;
 
 import io.vertx.core.Vertx;
 import io.vertx.mysqlclient.MySQLConnectOptions;
