@@ -1,9 +1,6 @@
 package com.bardiademon.controller;
 
 import com.bardiademon.Main;
-import com.bardiademon.data.dto.DtoLoginResult;
-import com.bardiademon.data.dto.DtoUser;
-import com.bardiademon.data.service.UserService;
 import com.bardiademon.util.Path;
 import graphql.GraphQL;
 import graphql.scalars.ExtendedScalars;
@@ -13,8 +10,6 @@ import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.http.HttpServerResponse;
-import io.vertx.core.json.JsonObject;
-import io.vertx.ext.auth.JWTOptions;
 import io.vertx.ext.auth.PubSecKeyOptions;
 import io.vertx.ext.auth.jwt.JWTAuth;
 import io.vertx.ext.auth.jwt.JWTAuthOptions;
@@ -26,15 +21,9 @@ import io.vertx.ext.web.handler.graphql.schema.VertxDataFetcher;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URL;
-import java.time.LocalTime;
-import java.util.Map;
 
 public sealed class Handler extends AbstractVerticle permits Server
 {
-    private static final String[] GRAPHQL_QUERY_FIELDS_NAME = {
-            "user" , "bardiademon" , "login" , "profile"
-    };
-
     private JWTAuth jwtAuth;
 
     protected Handler()
@@ -43,7 +32,7 @@ public sealed class Handler extends AbstractVerticle permits Server
     }
 
     @Override
-    public void start(Promise<Void> startPromise) throws Exception
+    public void start(Promise<Void> startPromise)
     {
         createJWTAuth();
     }
@@ -114,90 +103,29 @@ public sealed class Handler extends AbstractVerticle permits Server
 
     private TypeRuntimeWiring.Builder graphQlQueryDataFetch(final TypeRuntimeWiring.Builder builder)
     {
-        for (final String fieldName : GRAPHQL_QUERY_FIELDS_NAME)
+        final DataFetcher dataFetcher = new DataFetcher(vertx , jwtAuth);
+
+        final Method[] methods = dataFetcher.getClass().getMethods();
+
+        for (final Method method : methods)
         {
-            try
+            builder.dataFetcher(method.getName() , VertxDataFetcher.create(environment ->
             {
-                final Method method = Handler.this.getClass().getMethod(String.format("%sDataFetcher" , fieldName) , DataFetchingEnvironment.class);
-                builder.dataFetcher(fieldName , VertxDataFetcher.create(environment ->
+                Future<?> result;
+                try
                 {
-                    Future<?> result;
-                    try
-                    {
-                        result = (Future<?>) method.invoke(Handler.this , environment);
-                    }
-                    catch (IllegalAccessException | InvocationTargetException e)
-                    {
-                        throw new RuntimeException(e);
-                    }
-                    return result;
-                }));
-            }
-            catch (NoSuchMethodException e)
-            {
-                throw new RuntimeException(e);
-            }
+                    result = (Future<?>) method.invoke(dataFetcher , environment);
+                }
+                catch (IllegalAccessException | InvocationTargetException e)
+                {
+                    throw new RuntimeException(e);
+                }
+                return result;
+            }));
         }
 
         return builder;
     }
 
-    public Future<Map<String, Object>> userDataFetcher(final DataFetchingEnvironment environment)
-    {
-        return Future.future(event ->
-        {
-            final JsonObject res = new JsonObject();
-
-            res.put("id" , 1);
-            res.put("name" , "bardia");
-            res.put("family" , "demon");
-            res.put("phone" , "989170221393");
-
-            event.complete(res.getMap());
-        });
-    }
-
-    public Future<Map<String, Object>> bardiademonDataFetcher(final DataFetchingEnvironment environment)
-    {
-        return Future.future(event ->
-        {
-            final JsonObject res = new JsonObject();
-            res.put("id" , "@bardiademon");
-            res.put("name" , "bardia");
-            res.put("email" , "bardiademon@gmail.com");
-
-            event.complete(res.getMap());
-        });
-    }
-
-    public Future<DtoLoginResult> loginDataFetcher(final DataFetchingEnvironment environment)
-    {
-        return Future.future(event ->
-        {
-            final String username = environment.getArgument("username");
-            final String password = environment.getArgument("password");
-
-            UserService.getUserService(vertx).findByUsernamePassword(username , password , user ->
-            {
-                final String token = jwtAuth.generateToken(new JsonObject().put("user_id" , user.getId()) , new JWTOptions().setAlgorithm("RS256"));
-                event.complete(DtoLoginResult.builder()
-                        .token(token)
-                        .result(token != null)
-                        .user(DtoUser.getInstance(user))
-                        .build());
-            });
-        });
-    }
-
-    public Future<DtoUser> profileDataFetcher(final DataFetchingEnvironment environment)
-    {
-        return Future.future(event -> jwtAuth.authenticate(new JsonObject().put("token" , environment.getArgument("token")))
-                .onSuccess(user ->
-                {
-                    final long id = Long.parseLong(user.get("user_id").toString());
-                    UserService.getUserService(vertx).findById(id , res -> event.complete(DtoUser.getInstance(res)));
-                })
-                .onFailure(eventFailure -> event.fail("Invalid token")));
-    }
 
 }
