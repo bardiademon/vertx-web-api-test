@@ -55,6 +55,30 @@ public final class UserService extends Service
         else handler.handle(null);
     }
 
+    public void findById(final long id , final Handler<User> handler)
+    {
+        final JDBCPoolConnection jdbcPoolConnection = connectJDBCPool(vertx);
+        if (JdbcConnection.isConnected())
+        {
+            jdbcPoolConnection.getJdbcPool().preparedQuery(querySelectUserById())
+                    .execute(Tuple.of(id))
+                    .onFailure(event ->
+                    {
+                        System.out.println(event.getMessage());
+                        handler.handle(null);
+                    }).onSuccess(rows ->
+                    {
+                        if (rows.size() > 0)
+                        {
+                            final Row row = rows.iterator().next();
+                            handler.handle(User.rowToUser(row));
+                        }
+                        else handler.handle(null);
+                    });
+        }
+        else handler.handle(null);
+    }
+
     /**
      * for JDBC connection => java.sql
      */
@@ -103,5 +127,10 @@ public final class UserService extends Service
     private String querySelectUserByUsernamePassword()
     {
         return "select * from `users` where `username` = ? and `password` = ?";
+    }
+
+    private String querySelectUserById()
+    {
+        return "select * from `users` where `id` = ?";
     }
 }

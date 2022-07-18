@@ -26,12 +26,13 @@ import io.vertx.ext.web.handler.graphql.schema.VertxDataFetcher;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URL;
+import java.time.LocalTime;
 import java.util.Map;
 
 public sealed class Handler extends AbstractVerticle permits Server
 {
     private static final String[] GRAPHQL_QUERY_FIELDS_NAME = {
-            "user" , "bardiademon" , "login"
+            "user" , "bardiademon" , "login" , "profile"
     };
 
     private JWTAuth jwtAuth;
@@ -186,6 +187,17 @@ public sealed class Handler extends AbstractVerticle permits Server
                         .build());
             });
         });
+    }
+
+    public Future<DtoUser> profileDataFetcher(final DataFetchingEnvironment environment)
+    {
+        return Future.future(event -> jwtAuth.authenticate(new JsonObject().put("token" , environment.getArgument("token")))
+                .onSuccess(user ->
+                {
+                    final long id = Long.parseLong(user.get("user_id").toString());
+                    UserService.getUserService(vertx).findById(id , res -> event.complete(DtoUser.getInstance(res)));
+                })
+                .onFailure(eventFailure -> event.fail("Invalid token")));
     }
 
 }

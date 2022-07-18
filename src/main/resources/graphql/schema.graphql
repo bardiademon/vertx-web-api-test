@@ -14,6 +14,8 @@ type Query {
     user(family: String, name: String, phone: String): Users
 
     login(username: String, password: String): LoginResult
+
+    profile(token: String): User
 }
 
 type LoginResult
@@ -33,7 +35,6 @@ type User
     password: String
     createdAt: DateTime
 }
-
 
 # For test
 type Bardiademon {
